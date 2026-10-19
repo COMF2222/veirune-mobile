@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Star, Check, Trash2 } from "lucide-react";
 import { api } from "./client";
 import { useApp, run } from "./state";
-import { useResource, useText, TrackList, Empty } from "./ui";
+import { useResource, useText, TrackList } from "./ui";
 import { play } from "./player";
 import type { CommunityHome, CommunityRole } from "./communityTypes";
 
@@ -66,9 +66,12 @@ export function CommunityHomeSection() {
   const [busy, setBusy] = useState(false);
   const rows = data.value?.[period] || [],
     picks = data.value?.editorial || [];
+  const editablePicks = data.value?.role.canEdit
+    ? picks.filter((r) => r.pickedByMe || data.value?.role.isOwner)
+    : [];
   return (
-    <section className="community-home">
-      <h2>{t("Слушают у нас", "Popular in Veirune")}</h2>
+    <section className="community-home" aria-busy={data.loading}>
+      <h2>{t("Слушают в Veirune", "Popular in Veirune")}</h2>
       <div
         className="chips"
         role="group"
@@ -90,92 +93,53 @@ export function CommunityHomeSection() {
           </button>
         ))}
       </div>
-      <p className="muted">
-        {t(
-          "По числу слушателей — повторы не влияют на место.",
-          "Ranked by listeners. Repeats do not raise a track’s position.",
-        )}
-      </p>
-      {data.loading && !data.value ? (
-        <p role="status">{t("Загружаем подборки…", "Loading collections…")}</p>
-      ) : data.error ? (
+      <p className="muted">{t("По числу слушателей", "By listeners")}</p>
+      {data.error ? (
         <p role="status">
-          {t(
-            "Подборки пока недоступны. Попробуй обновить главную.",
-            "Collections are unavailable. Try refreshing Home.",
-          )}
+          {t("Не удалось загрузить подборки.", "Could not load collections.")}
         </p>
       ) : (
         <>
-          {rows.length ? (
+          {rows.length > 0 && (
             <TrackList
               tracks={rows.map((r) => r.track)}
               listenerCounts={Object.fromEntries(
                 rows.map((r) => [r.trackId, r.listeners || 0]),
               )}
             />
-          ) : (
-            <Empty>
-              {t(
-                "Пока мало прослушиваний. Загляни позже.",
-                "Not enough listening yet. Check back later.",
-              )}
-            </Empty>
           )}
           <div className="section-heading">
             <h2>{t("Выбор редакции", "Editors’ picks")}</h2>
-            <button
-              disabled={!picks.length}
-              onClick={() => void run(() => play(picks.map((r) => r.track)))}
-            >
-              {t("Слушать всё", "Play all")}
-            </button>
-          </div>
-          <p className="muted">
-            {t(
-              "Музыка, которую советует наша команда.",
-              "Music recommended by our editorial team.",
+            {picks.length > 0 && (
+              <button
+                onClick={() => void run(() => play(picks.map((r) => r.track)))}
+              >
+                {t("Слушать всё", "Play all")}
+              </button>
             )}
-          </p>
-          {picks.length ? (
-            <TrackList tracks={picks.map((r) => r.track)} />
-          ) : (
-            <Empty>
-              {t(
-                "Скоро здесь появятся первые треки.",
-                "The first picks will appear here soon.",
-              )}
-            </Empty>
-          )}
-          {data.value?.role.canEdit && (
+          </div>
+          {picks.length > 0 && <TrackList tracks={picks.map((r) => r.track)} />}
+          {editablePicks.length > 0 && (
             <div className="editorial-manage">
-              <p>
-                {t(
-                  "Добавляй треки кнопкой в плеере или меню песни. До 10 от каждого редактора.",
-                  "Add songs from the player or track menu. Up to 10 per editor.",
-                )}
-              </p>
-              {picks
-                .filter((r) => r.pickedByMe || data.value?.role.isOwner)
-                .map((r) => (
-                  <button
-                    key={r.trackId}
-                    disabled={busy}
-                    onClick={() => {
-                      setBusy(true);
-                      void run(async () => {
-                        await api.community("pick", {
-                          trackId: r.trackId,
-                          active: false,
-                        });
-                        useApp.setState((s) => ({ revision: s.revision + 1 }));
-                      }).finally(() => setBusy(false));
-                    }}
-                  >
-                    <Trash2 size={18} />
-                    {t("Убрать", "Remove")}: {r.track.title}
-                  </button>
-                ))}
+              {editablePicks.map((r) => (
+                <button
+                  key={r.trackId}
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    void run(async () => {
+                      await api.community("pick", {
+                        trackId: r.trackId,
+                        active: false,
+                      });
+                      useApp.setState((s) => ({ revision: s.revision + 1 }));
+                    }).finally(() => setBusy(false));
+                  }}
+                >
+                  <Trash2 size={18} />
+                  {t("Убрать", "Remove")}: {r.track.title}
+                </button>
+              ))}
             </div>
           )}
         </>

@@ -2,6 +2,21 @@
   "schema": 1,
   "releases": [
     {
+      "version": "0.1.10",
+      "ru": {
+        "title": "Veirune Mobile 0.1.10",
+        "changes": [
+          "Убраны лишние пояснения и заглушки в популярных треках и выборе редакции."
+        ]
+      },
+      "en": {
+        "title": "Veirune Mobile 0.1.10",
+        "changes": [
+          "Removed extra descriptions and empty-state messages from popular music and editors' picks."
+        ]
+      }
+    },
+    {
       "version": "0.1.9",
       "ru": {
         "title": "Veirune Mobile 0.1.9",
