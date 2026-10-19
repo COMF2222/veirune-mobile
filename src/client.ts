@@ -57,7 +57,7 @@ async function loadRequest<T>(
         method,
         headers: {
           "Content-Type": "application/json",
-          "X-Fastcloud-Preferences": "2",
+          "X-Fastcloud-Preferences": "3",
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       }).then(async (r) => ({ status: r.status, data: await r.json() }));
@@ -88,6 +88,31 @@ export async function collection<T>(
   return collectionItems(rows, kind) as T[];
 }
 export const api = {
+  community: <T>(
+    action: "home" | "role" | "pick" | "editor" | "users",
+    input: {
+      trackId?: number;
+      active?: boolean;
+      userId?: number;
+      editor?: boolean;
+    } = {},
+  ) => {
+    const path =
+      action === "editor"
+        ? `/v1/admin/editors/${input.userId}`
+        : action === "users"
+          ? "/v1/admin/users"
+          : `/v1/community/${action === "pick" ? "picks" : action}`;
+    return request<T>(
+      path,
+      action === "pick" || action === "editor" ? "POST" : "GET",
+      action === "pick"
+        ? { trackId: input.trackId, active: input.active }
+        : action === "editor"
+          ? { editor: input.editor }
+          : undefined,
+    );
+  },
   me: () => sc<User>("/me"),
   personal: () => request<Cloud>("/v1/me/personal"),
   patch: (body: unknown) => request<Cloud>("/v1/me/personal", "POST", body),

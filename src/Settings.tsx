@@ -11,6 +11,7 @@ import { nativePlatform, supportsAudioEffects } from "./native";
 import { Sheet, InputDialog, useResource, useText } from "./ui";
 import { saveWallpaper, useWallpaper } from "./wallpaper";
 import { WallpaperEditor } from "./WallpaperEditor";
+import { EditorManagement } from "./Community";
 import { validateBackup } from "./backup";
 import { UpdateSettings } from "./UpdateUI";
 const colours = [
@@ -196,6 +197,18 @@ export function Settings() {
         </div>
       </section>
       <AppIconPicker english={prefs.language === "English"} />
+      <EditorManagement />
+      <section className="settings-card">
+        <h2>{t("Главная", "Home")}</h2>
+        <Toggle
+          label={t(
+            "Показывать популярное и выбор редакции",
+            "Show popular music and editors’ picks",
+          )}
+          checked={prefs.show_community !== false}
+          onChange={(v) => save("show_community", v)}
+        />
+      </section>
       <section className="settings-card">
         <h2>{t("Оформление", "Appearance")}</h2>
         <div className="chips">

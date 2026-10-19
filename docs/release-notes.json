@@ -2,6 +2,25 @@
   "schema": 1,
   "releases": [
     {
+      "version": "0.1.9",
+      "ru": {
+        "title": "Veirune Mobile 0.1.9",
+        "changes": [
+          "На главной появились популярные треки за сегодня, вчера и неделю — по числу уникальных слушателей.",
+          "Общий выбор редакции: назначенные владельцем редакторы добавляют музыку кнопкой в плеере или меню трека.",
+          "Популярное и выбор редакции можно скрыть в настройках."
+        ]
+      },
+      "en": {
+        "title": "Veirune Mobile 0.1.9",
+        "changes": [
+          "Home now shows popular tracks for today, yesterday and the week, ranked by unique listeners.",
+          "Editors’ picks: owner-appointed editors can add music from the player or track menu.",
+          "Hide popular music and editors’ picks in Settings."
+        ]
+      }
+    },
+    {
       "version": "0.1.8",
       "ru": {
         "title": "Veirune Mobile 0.1.8",

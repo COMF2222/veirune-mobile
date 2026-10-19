@@ -35,6 +35,8 @@ export const demoPlaylists: Playlist[] = [
   },
 ];
 let cloud = emptyCloud();
+const demoPicks = new Set([1000, 1001]);
+const demoEditors = new Set([2]);
 export async function demoRequest(
   path: string,
   method: string,
@@ -42,6 +44,66 @@ export async function demoRequest(
 ): Promise<unknown> {
   path = decodeURIComponent(path);
   const route = path.split("?")[0].replace("/v1/soundcloud/api", "");
+  if (path.startsWith("/v1/community/") || path.startsWith("/v1/admin/")) {
+    const owner = new URLSearchParams(location.search).get("owner") === "1";
+    const canEdit =
+      owner || new URLSearchParams(location.search).get("editor") !== "0";
+    if (path === "/v1/community/picks" && method === "POST") {
+      const pick = body as { trackId: number; active: boolean };
+      if (pick.active) demoPicks.add(pick.trackId);
+      else demoPicks.delete(pick.trackId);
+    }
+    if (path.startsWith("/v1/admin/editors/") && method === "POST") {
+      const id = Number(path.split("/").pop());
+      if ((body as { editor: boolean }).editor) demoEditors.add(id);
+      else demoEditors.delete(id);
+    }
+    if (path === "/v1/admin/users")
+      return {
+        users: [
+          { id: 1, username: "enchanted", status: "approved" },
+          {
+            id: 2,
+            username: "harlow2k",
+            status: "approved",
+            editor: demoEditors.has(2),
+          },
+          {
+            id: 3,
+            username: "Luna",
+            status: "approved",
+            editor: demoEditors.has(3),
+          },
+        ],
+      };
+    const role = { canEdit, isOwner: owner, pickedIds: [...demoPicks] };
+    if (path === "/v1/community/home") {
+      const rows = demoTracks
+        .slice(0, 3)
+        .map((track, index) => ({
+          trackId: track.id,
+          track,
+          listeners: 5 - index,
+        }));
+      return {
+        role,
+        today: rows,
+        yesterday: rows.slice(1),
+        week: rows,
+        editorial: demoTracks
+          .filter((track) => demoPicks.has(track.id))
+          .map((track) => ({
+            trackId: track.id,
+            track,
+            votes: 1,
+            pickedByMe: true,
+          })),
+        day: "2026-10-19",
+        timezone: "UTC",
+      };
+    }
+    return role;
+  }
   const userId = Number(route.match(/^\/users\/soundcloud:users:(\d+)$/)?.[1]);
   if (userId)
     return {

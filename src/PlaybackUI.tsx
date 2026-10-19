@@ -1,6 +1,7 @@
 import { lockPageScroll } from "./modalScroll";
 import { usePlayerSwipe } from "./usePlayerSwipe";
 import { StationButton } from "./StationButton";
+import { EditorialButton } from "./Community";
 import { openTrack, openTrackArtist } from "./musicNavigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -62,6 +63,7 @@ export function MiniPlayer() {
           <small>{artist(track)}</small>
         </span>
       </button>
+      <EditorialButton id={track.id} compact />
       <button
         className="icon-button"
         aria-label={t("Поделиться", "Share")}
@@ -315,6 +317,7 @@ export function FullPlayer() {
           </button>
         </div>
         <div className="player-tools">
+          <EditorialButton id={track.id} compact />
           <StationButton kind="track" tracks={[track]} iconOnly />
           <button
             className="icon-button"

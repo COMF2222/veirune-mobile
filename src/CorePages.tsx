@@ -39,6 +39,7 @@ import {
 import { artist, type Track, type Playlist, type User } from "./types";
 import { moodQuery } from "./mood";
 import { ArtistCatalog } from "./ArtistCatalog";
+import { CommunityHomeSection } from "./Community";
 
 export function Home() {
   const t = useText();
@@ -123,6 +124,7 @@ export function Home() {
           </button>
         </div>
       </section>
+      {preferences.show_community !== false && <CommunityHomeSection />}
       {recent.length > 0 && (
         <section>
           <div className="section-heading">

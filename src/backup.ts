@@ -16,6 +16,7 @@ const text = (value: unknown, maximum: number) =>
   !/[\u0000-\u001f]/.test(value);
 const colours = ["accent_rgb", "panel_rgb", "text_rgb", "muted_text_rgb"];
 const toggles = [
+  "show_community",
   "normalization",
   "gapless",
   "lyrics_blur_past",

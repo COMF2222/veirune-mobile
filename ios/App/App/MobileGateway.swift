@@ -92,7 +92,7 @@ actor MobileGateway {
         guard path.hasPrefix("/v1/"), !path.contains(".."), !path.contains("://"), let url = URL(string: server + path) else { throw MobileFailure.message("Invalid server path") }
         var request = URLRequest(url: url, timeoutInterval: 85)
         request.httpMethod = method
-        request.setValue("2", forHTTPHeaderField: "X-Fastcloud-Preferences")
+        request.setValue("3", forHTTPHeaderField: "X-Fastcloud-Preferences")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { request.setValue("OAuth " + token, forHTTPHeaderField: "Authorization") }
         if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }

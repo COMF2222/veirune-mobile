@@ -1697,6 +1697,11 @@ progress {
 .artist-bio p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .artist-tabs { display: flex; overflow-x: auto; scrollbar-width: none; gap: var(--space-2); margin: var(--space-4) 0; border-bottom: 1px solid var(--line); }
 .artist-tabs::-webkit-scrollbar { display: none; }
+.community-home { margin-top: var(--space-5); }
+.community-counts { display: grid; gap: var(--space-2); color: var(--muted); font-size: .875rem; }
+.editorial-manage { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+.editorial-manage button { justify-content: flex-start; text-align: left; overflow-wrap: anywhere; }
+.player-tools { flex-wrap: wrap; }
 .artist-tabs button { flex: 0 0 auto; min-width: 88px; display: grid; grid-template-rows: 1fr auto; gap: var(--space-1); min-height: 68px; padding: var(--space-3) var(--space-2); border: 0; border-radius: 0; border-bottom: 3px solid transparent; background: transparent; font-size: .94rem; }
 .artist-tabs button span { overflow-wrap: anywhere; }
 .artist-tabs button[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); }

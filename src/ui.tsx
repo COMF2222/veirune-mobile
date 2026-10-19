@@ -1,4 +1,6 @@
 import { lockPageScroll } from "./modalScroll";
+import { EditorialButton } from "./Community";
+import { listenerLabel } from "./communityLabels";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   X,
@@ -250,17 +252,20 @@ export async function share(item: Track | Playlist, kind = "track") {
 }
 export function TrackList({
   tracks,
+  listenerCounts,
   onPlay,
   removable,
   onRemove,
 }: {
   tracks: Track[];
+  listenerCounts?: Record<number, number>;
   onPlay?: (index: number) => void;
   removable?: boolean;
   onRemove?: (track: Track) => void;
 }) {
   const t = useText();
   const likes = useApp((s) => s.likes);
+  const english = useCloud((s) => s.cloud.preferences.language) === "English";
   const current = usePlayer((s) => s.state.queue[s.state.index]?.id);
   const [menu, setMenu] = useState<Track | null>(null);
   return (
@@ -284,6 +289,11 @@ export function TrackList({
               <span>
                 <strong>{track.title}</strong>
                 <small>{artist(track)}</small>
+                {listenerCounts?.[track.id] != null && (
+                  <small>
+                    {listenerLabel(listenerCounts[track.id], english)}
+                  </small>
+                )}
               </span>
             </button>
             <button
@@ -411,6 +421,7 @@ export function TrackMenu({
             <Radio />
             {t("Волна по треку", "Track radio")}
           </button>
+          <EditorialButton id={track.id} />
           <button onClick={() => action(() => share(track))}>
             <Share2 />
             {t("Поделиться", "Share")}

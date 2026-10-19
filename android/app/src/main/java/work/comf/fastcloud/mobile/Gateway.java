@@ -241,7 +241,7 @@ final class Gateway {
       path.equals("/v1/mobile/lyrics") || path.equals("/v1/media/resolve") ? 90000 : 45000
     );
     connection.setRequestMethod(method);
-    connection.setRequestProperty("X-Fastcloud-Preferences", "2");
+    connection.setRequestProperty("X-Fastcloud-Preferences", "3");
     connection.setRequestProperty("Accept", "application/json");
     if (token != null) connection.setRequestProperty(
       "Authorization",
