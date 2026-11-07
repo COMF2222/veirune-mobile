@@ -43,4 +43,12 @@ final class PlaybackRules {
   static double incomingGain(double progress) {
     return Math.sin((Math.max(0, Math.min(1, progress)) * Math.PI) / 2);
   }
+
+  // Positive normalization is handled by LoudnessEnhancer. Attenuation must
+  // remain in place throughout preload, crossfade, cancellation and handoff.
+  static float volume(double normalization, double envelope) {
+    if (!Double.isFinite(normalization)) normalization = 1;
+    if (!Double.isFinite(envelope)) envelope = 0;
+    return (float) (Math.max(0, Math.min(1, normalization)) * Math.max(0, Math.min(1, envelope)));
+  }
 }

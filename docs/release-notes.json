@@ -2,6 +2,25 @@
   "schema": 1,
   "releases": [
     {
+      "version": "0.1.11",
+      "ru": {
+        "title": "Veirune Mobile 0.1.11",
+        "changes": [
+          "Убран скачок громкости в начале плавного перехода между треками.",
+          "Добавлено воспроизведение полных потоков SoundCloud для части треков, которые раньше были доступны только как фрагменты.",
+          "Полные потоки используют обычный плеер и продолжают играть при заблокированном экране."
+        ]
+      },
+      "en": {
+        "title": "Veirune Mobile 0.1.11",
+        "changes": [
+          "Fixed a volume jump when a crossfade starts between tracks.",
+          "Added full SoundCloud stream playback for some tracks previously available only as previews.",
+          "Full streams use the regular player and continue with the screen locked."
+        ]
+      }
+    },
+    {
       "version": "0.1.10",
       "ru": {
         "title": "Veirune Mobile 0.1.10",

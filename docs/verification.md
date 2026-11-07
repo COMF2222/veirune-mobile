@@ -1,5 +1,20 @@
 # Verification
 
+## 0.1.11 playback update
+
+The persistent-key signed APK was built locally; staging verified package,
+version/build 0.1.11/1011 and the pinned release certificate. TypeScript checks,
+50 shared tests, 29 Android JVM tests and release lint pass (zero errors,
+101 pre-existing warnings). Regression checks cover preservation of normalized
+volume at crossfade start/cancellation/handoff and silence of preloaded audio.
+The effects tick no longer overwrites fade envelopes, and volume is set before
+the prepared player starts. The final APK includes this correction.
+
+Widevine is integrated into the existing Media3 service rather than a browser
+or second activity. Full licensed playback, locked-screen behavior and the
+audible crossfade correction still need an Honor device check. No phone was
+connected, and the owner chose to check the APK later. iOS was not built/tested.
+
 Keep this file updated with actual checks, not assumptions.
 
 The Android project must pass `npm run check`, `npm test`, production web build,

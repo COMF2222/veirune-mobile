@@ -13,6 +13,7 @@ import androidx.media3.datasource.*;
 import androidx.media3.exoplayer.*;
 import androidx.media3.exoplayer.audio.*;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.drm.*;
 import androidx.media3.session.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -38,16 +39,19 @@ public class PlaybackService extends MediaSessionService {
     new ArrayDeque<>();
   private boolean destroyed;
 
-  private record Ticket(String url, long created) {}
+  private record Ticket(Gateway.PlaybackStream source, long created) {}
+  private final Set<String> announcedWebStreams = ConcurrentHashMap.newKeySet();
 
   private final Map<Long, Ticket> streams = new ConcurrentHashMap<>();
   private final Map<ExoPlayer, AudioProbe> probes = new IdentityHashMap<>();
   private final Map<ExoPlayer, Equalizer> equalizers = new IdentityHashMap<>();
   private final Map<ExoPlayer, LoudnessEnhancer> enhancers =
     new IdentityHashMap<>();
+  private final Map<ExoPlayer, Double> normalizationLevels = new IdentityHashMap<>();
+  private double fadeProgress;
   private long lastTick, lastPosition, sessionMs, fadeStart, fadeLength, fadePosition;
   private boolean counted, extending;
-  private int retries, ticks;
+  private int ticks;
   private String spareId = "";
   private int spareIndex = -1;
 
@@ -69,13 +73,13 @@ public class PlaybackService extends MediaSessionService {
         if (local != null) return spec.withUri(android.net.Uri.parse(local));
         Ticket ticket = streams.get(id);
         if (
-          ticket == null ||
+          ticket == null || ticket.source().owner() != gateway.accountId() ||
           System.currentTimeMillis() - ticket.created() > 3 * 3600000L
         ) {
-          ticket = new Ticket(gateway.stream(id), System.currentTimeMillis());
+          ticket = new Ticket(gateway.playback(id, "1".equals(spec.uri.getQueryParameter("web"))), System.currentTimeMillis());
           streams.put(id, ticket);
         }
-        return spec.withUri(android.net.Uri.parse(ticket.url()));
+        return spec.withUri(android.net.Uri.parse(ticket.source().url()));
       } catch (Exception e) {
         throw new java.io.IOException(e.getMessage(), e);
       }
@@ -114,7 +118,7 @@ public class PlaybackService extends MediaSessionService {
     };
     ExoPlayer result = new ExoPlayer.Builder(this, renderers)
       .setMediaSourceFactory(
-        new DefaultMediaSourceFactory(this).setDataSourceFactory(sources)
+        new DefaultMediaSourceFactory(this).setDataSourceFactory(sources).setDrmSessionManagerProvider(this::drmFor)
       )
       .setLoadControl(
         new DefaultLoadControl.Builder()
@@ -171,7 +175,6 @@ public class PlaybackService extends MediaSessionService {
           sessionMs = 0;
           counted = false;
           lastPosition = result.getCurrentPosition();
-          retries = 0;
           probe.restart();
           saveQueue();
           if (
@@ -182,6 +185,21 @@ public class PlaybackService extends MediaSessionService {
         @Override
         public void onPlaybackStateChanged(int state) {
           if (player == result && state == Player.STATE_ENDED) extend();
+        }
+
+        @Override
+        public void onIsPlayingChanged(boolean playing) {
+          if (!playing || (player != result && spare != result) || result.getCurrentMediaItem() == null) return;
+          final long id;
+          try { id = Long.parseLong(result.getCurrentMediaItem().mediaId); } catch (NumberFormatException ignored) { return; }
+          Ticket ticket = streams.get(id);
+          if (ticket == null || ticket.source().startedPath() == null || !announcedWebStreams.add(ticket.source().startedPath())) return;
+          if (announcedWebStreams.size() > 256) announcedWebStreams.clear();
+          io.execute(() -> {
+            try {
+              if (ticket.source().owner() == gateway.accountId()) gateway.raw(ticket.source().startedPath(), "POST", new JSONObject(), null);
+            } catch (Exception ignored) {}
+          });
         }
 
         @Override
@@ -215,24 +233,43 @@ public class PlaybackService extends MediaSessionService {
             return;
           }
           cancelSpare();
-          if (++retries <= 3) {
-            streams.clear();
-            long position = result.getCurrentPosition();
-            handler.postDelayed(
-              () -> {
-                if (player == result && result.getPlayerError() != null) {
-                  result.seekTo(position);
-                  result.prepare();
-                  result.play();
-                }
-              },
-              Math.min(15000, retries * 3000)
-            );
+          Throwable cause = error;
+          boolean global = false;
+          for (int depth=0; cause != null && depth<12; depth++, cause=cause.getCause()) {
+            String message = String.valueOf(cause.getMessage()).toLowerCase(Locale.ROOT);
+            if (message.contains("(429)") || message.contains("http 429") || message.contains("(401)") || message.contains("sign-in required") || message.contains("account changed") || message.contains("disabled by the owner")) global=true;
+            if (cause instanceof HttpDataSource.InvalidResponseCodeException httpError && httpError.responseCode == 429) global=true;
+          }
+          if (!global && result.hasNextMediaItem()) {
+            result.seekToNextMediaItem(); result.prepare(); result.play();
           }
         }
       }
     );
     return result;
+  }
+
+  private DrmSessionManager drmFor(MediaItem item) {
+    final long id;
+    try { id = Long.parseLong(item.mediaId); } catch (NumberFormatException error) { return DrmSessionManager.DRM_UNSUPPORTED; }
+    var factory = new DefaultHttpDataSource.Factory().setConnectTimeoutMs(15000).setReadTimeoutMs(30000).setAllowCrossProtocolRedirects(false);
+    MediaDrmCallback callback = new MediaDrmCallback() {
+      @Override
+      public MediaDrmCallback.Response executeKeyRequest(UUID uuid, ExoMediaDrm.KeyRequest request) throws MediaDrmCallbackException {
+        try {
+          Ticket ticket = streams.get(id);
+          if (ticket == null || ticket.source().owner() != gateway.accountId() || ticket.source().licensePath() == null) throw new java.io.IOException("No active playback license");
+          return new HttpMediaDrmCallback(gateway.server()+ticket.source().licensePath(), true, factory).executeKeyRequest(uuid, request);
+        } catch (MediaDrmCallbackException error) { throw error; }
+        catch (Exception error) { throw new MediaDrmCallbackException(new DataSpec(android.net.Uri.parse("fastcloud://license/"+id)), android.net.Uri.EMPTY, Collections.emptyMap(), 0, error); }
+      }
+
+      @Override
+      public MediaDrmCallback.Response executeProvisionRequest(UUID uuid, ExoMediaDrm.ProvisionRequest request) throws MediaDrmCallbackException {
+        return new HttpMediaDrmCallback(null, false, factory).executeProvisionRequest(uuid,request);
+      }
+    };
+    return new DefaultDrmSessionManager.Builder().setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER).setMultiSession(true).build(callback);
   }
 
   private JSONObject preferences() {
@@ -360,6 +397,7 @@ public class PlaybackService extends MediaSessionService {
         }
         applyEffects(player);
         if (spare != null) applyEffects(spare);
+        applyVolumes();
       } catch (Exception ignored) {}
       lastTick = now;
       lastPosition = position;
@@ -414,6 +452,9 @@ public class PlaybackService extends MediaSessionService {
             fadeLength = remaining;
             fadePosition = player.getCurrentPosition();
             fadeStart = android.os.SystemClock.elapsedRealtime();
+            fadeProgress = 0;
+            applyEffects(spare);
+            applyVolumes();
             spare.play();
           }
           if (fadeStart > 0) {
@@ -425,8 +466,8 @@ public class PlaybackService extends MediaSessionService {
                   (double) Math.max(1, fadeLength)
               )
             );
-            player.setVolume((float) PlaybackRules.outgoingGain(progress));
-            spare.setVolume((float) PlaybackRules.incomingGain(progress));
+            fadeProgress = progress;
+            applyVolumes();
             if (progress >= 1 || remaining <= 200) handoff();
           }
         }
@@ -443,6 +484,7 @@ public class PlaybackService extends MediaSessionService {
       next = spare;
     spare = null;
     fadeStart = 0;
+    fadeProgress = 0;
     spareId = "";
     var before = new ArrayList<MediaItem>();
     var after = new ArrayList<MediaItem>();
@@ -455,7 +497,8 @@ public class PlaybackService extends MediaSessionService {
     next.setShuffleModeEnabled(previous.getShuffleModeEnabled());
     next.setRepeatMode(previous.getRepeatMode());
     player = next;
-    next.setVolume(1);
+    previous.setVolume(0);
+    applyVolumes();
     session.setPlayer(next);
     previous.pause();
     releasePlayer(previous);
@@ -481,11 +524,27 @@ public class PlaybackService extends MediaSessionService {
       releasePlayer(value);
     }
     fadeStart = 0;
+    fadeProgress = 0;
     spareId = "";
-    if (reset && player != null) player.setVolume(1);
+    if (reset) applyVolumes();
+  }
+
+  private void applyVolumes() {
+    if (player != null) player.setVolume(PlaybackRules.volume(
+      normalizationLevels.getOrDefault(player, 1.0),
+      fadeStart > 0 ? PlaybackRules.outgoingGain(fadeProgress) : 1
+    ));
+    if (spare != null) spare.setVolume(PlaybackRules.volume(
+      normalizationLevels.getOrDefault(spare, 1.0),
+      fadeStart > 0 ? PlaybackRules.incomingGain(fadeProgress) : 0
+    ));
   }
 
   private void applyEffects(ExoPlayer value) {
+    boolean normalize = preferences().optBoolean("normalization");
+    AudioProbe probe = probes.get(value);
+    double gain = normalize && probe != null ? probe.gain() : 1;
+    normalizationLevels.put(value, gain);
     try {
       int sessionId = value.getAudioSessionId();
       if (sessionId == C.AUDIO_SESSION_ID_UNSET) return;
@@ -527,13 +586,10 @@ public class PlaybackService extends MediaSessionService {
         enhancer = new LoudnessEnhancer(sessionId);
         enhancers.put(value, enhancer);
       }
-      boolean normalize = preferences().optBoolean("normalization");
-      double gain = normalize ? probes.get(value).gain() : 1;
       enhancer.setTargetGain(
         (int) Math.max(0, Math.min(600, 2000 * Math.log10(Math.max(1, gain))))
       );
       enhancer.setEnabled(normalize && gain > 1);
-      if (fadeStart == 0) value.setVolume((float) Math.min(1, gain));
     } catch (
       UnsupportedOperationException
       | IllegalStateException
@@ -547,6 +603,7 @@ public class PlaybackService extends MediaSessionService {
     LoudnessEnhancer gain = enhancers.remove(value);
     if (gain != null) gain.release();
     probes.remove(value);
+    normalizationLevels.remove(value);
     value.release();
   }
 

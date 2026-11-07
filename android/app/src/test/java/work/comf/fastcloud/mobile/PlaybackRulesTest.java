@@ -31,4 +31,26 @@ public class PlaybackRulesTest {
       b = PlaybackRules.incomingGain(.5);
     assertEquals(1, a * a + b * b, .00001);
   }
+
+  @Test
+  public void enteringAndLeavingCrossfadeNeverRemovesNormalizationAttenuation() {
+    float before = PlaybackRules.volume(.25, 1);
+    assertEquals(before, PlaybackRules.volume(.25, PlaybackRules.outgoingGain(0)), .00001);
+    for (int step = 0; step <= 100; step++) {
+      assertTrue(PlaybackRules.volume(.25, PlaybackRules.outgoingGain(step / 100.0)) <= before);
+    }
+    // The prepared next song remains silent, including after the effects tick.
+    assertEquals(0, PlaybackRules.volume(2, 0), 0);
+    assertEquals(0, PlaybackRules.volume(.4, PlaybackRules.incomingGain(0)), 0);
+    // Switching the primary player keeps the incoming song's measured level.
+    assertEquals(PlaybackRules.volume(.4, PlaybackRules.incomingGain(1)), PlaybackRules.volume(.4, 1), .00001);
+    assertEquals(.25, PlaybackRules.volume(.25, 1), .00001); // cancellation
+  }
+
+  @Test
+  public void invalidOrOutOfRangeMixEnvelopesCannotAmplifyThePlayer() {
+    assertEquals(0, PlaybackRules.volume(1, Double.NaN), 0);
+    assertEquals(0, PlaybackRules.volume(1, -1), 0);
+    assertEquals(1, PlaybackRules.volume(2, 2), 0);
+  }
 }

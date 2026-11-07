@@ -71,6 +71,21 @@ requires a Mac build and device verification.
 
 Android uses a Media3 foreground MediaSessionService, network wake mode, audio
 focus, headset controls and a second prepared player for natural crossfade.
+Mix volume composes each player's normalization attenuation with its crossfade
+envelope. The preloaded player stays muted until fade-in starts; its volume is
+applied before Play. Effects ticks, cancellation and handoff cannot reset either
+player to full volume. Hardware amplification remains separate from attenuation.
+From 0.1.11 its existing Media3 player also handles licensed Widevine HLS via
+`/v1/media/web-resolve`. Known previews try the same recording's full web stream
+first. The broker verifies access, proxies encrypted segments and relays opaque
+CDM challenges/licenses; JavaScript never receives credentials or content keys.
+Playback capabilities are bound to the current native account and never reused
+after an account switch. Once audio actually starts the service sends a bounded,
+deduplicated started event, enabling the broker's shared artist-cache warming.
+Protected media continues natively with the screen locked and uses the same
+notification and queue controls. There is no additional playback activity or
+window. Offline downloads still reject protected streams rather than writing
+an unusable encrypted download. Real Honor playback remains a device check.
 iOS uses AVFoundation and the same native bridge contracts; Mac compilation and
 real iPhone tests are still required. EQ and normalization are hidden on iOS
 until native support is implemented. Android offline HLS has explicit bounds and

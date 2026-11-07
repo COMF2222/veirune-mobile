@@ -295,7 +295,28 @@ final class Gateway {
     return normalize(response.json());
   }
 
-  String stream(long id) throws Exception {
+  record PlaybackStream(String url, String licensePath, String startedPath, long owner) {}
+
+  long accountId() throws Exception {
+    JSONObject value = session();
+    if (value == null) throw new IOException("SoundCloud sign-in required");
+    return value.getLong("account_id");
+  }
+
+  String stream(long id) throws Exception { return playback(id).url(); }
+
+  PlaybackStream playback(long id) throws Exception { return playback(id, false); }
+
+  private IOException playbackFailure(Response response) throws Exception {
+    return new IOException(response.json().optString("error", "Playback temporarily unavailable") + " (" + response.status() + ")");
+  }
+
+  PlaybackStream playback(long id, boolean preferWeb) throws Exception {
+    long owner = accountId();
+    if (preferWeb) {
+      PlaybackStream source = webPlayback(id, owner);
+      if (source != null) return source;
+    }
     Response result = request(
       "/v1/media/resolve",
       "POST",
@@ -306,11 +327,15 @@ final class Gateway {
       if (!path.startsWith("/v1/media/")) throw new IOException(
         "Invalid playback address"
       );
-      return server() + path;
+      if (accountId() != owner) throw new IOException("Account changed; retry the request");
+      return new PlaybackStream(server() + path, null, null, owner);
     }
-    if (result.status() != 422) throw new IOException(
-      "Playback temporarily unavailable (" + result.status() + ")"
-    );
+    boolean ownerDenial = result.status() == 403 && result.json().optString("error").toLowerCase(java.util.Locale.ROOT).contains("owner");
+    if (ownerDenial || (result.status() != 422 && result.status() != 403)) throw playbackFailure(result);
+    if (!preferWeb) {
+      PlaybackStream source = webPlayback(id, owner);
+      if (source != null) return source;
+    }
     JSONObject data = json(
       "/v1/soundcloud/api/tracks/" +
         java.net.URLEncoder.encode("soundcloud:tracks:" + id, "UTF-8") +
@@ -320,12 +345,30 @@ final class Gateway {
     );
     String path = data.optString(
       "hls_aac_160_url",
-      data.optString("hls_mp3_128_url", data.optString("preview_mp3_128_url"))
+      data.optString("hls_mp3_128_url")
     );
     if (!path.startsWith("/v1/soundcloud/asset/")) throw new IOException(
       "No playable stream"
     );
-    return server() + path;
+    if (accountId() != owner) throw new IOException("Account changed; retry the request");
+    return new PlaybackStream(server() + path, null, null, owner);
+  }
+
+  private PlaybackStream webPlayback(long id, long owner) throws Exception {
+    Response web = request("/v1/media/web-resolve", "POST", new JSONObject().put("urn", "soundcloud:tracks:" + id).put("drm", "widevine"));
+    if (web.status() == 200) {
+      JSONObject value = web.json();
+      String path = value.getString("playlist_path");
+      if (!path.matches("/v1/media/web/[A-Za-z0-9_-]{43}/index\\.m3u8")) throw new IOException("Invalid full playback address");
+      String basePath = path.substring(0, path.length() - "index.m3u8".length());
+      JSONObject licenses = value.optJSONObject("license_paths");
+      String license = licenses == null ? null : licenses.optString("com.widevine.alpha", null);
+      if (license != null && !license.equals(basePath + "license/widevine")) throw new IOException("Invalid playback license address");
+      if (accountId() != owner) throw new IOException("Account changed; retry the request");
+      return new PlaybackStream(server() + path, license, basePath + "started", owner);
+    }
+    if (web.status() != 404 && web.status() != 422) throw playbackFailure(web);
+    return null;
   }
 
   void completeLogin(String code, String verifier) throws Exception {

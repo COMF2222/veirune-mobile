@@ -401,8 +401,10 @@ public class FastcloudPlugin extends Plugin {
     );
     return new MediaItem.Builder()
       .setMediaId(String.valueOf(id))
-      .setUri("fastcloud://track/" + id)
+      .setUri("fastcloud://track/" + id + ("preview".equals(track.optString("access")) || "SNIP".equals(track.optString("policy")) ? "?web=1" : ""))
       .setMimeType(MimeTypes.APPLICATION_M3U8)
+      .setDrmConfiguration(new MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
+        .setLicenseUri("fastcloud://license/" + id).setMultiSession(true).build())
       .setMediaMetadata(
         new MediaMetadata.Builder()
           .setTitle(track.optString("title"))
