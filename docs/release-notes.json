@@ -2,6 +2,21 @@
   "schema": 1,
   "releases": [
     {
+      "version": "0.1.12",
+      "ru": {
+        "title": "Veirune Mobile 0.1.12",
+        "changes": [
+          "Добавлено автоматическое получение проверенного адреса сервера при переносе сервиса: с сохранением входа и очереди."
+        ]
+      },
+      "en": {
+        "title": "Veirune Mobile 0.1.12",
+        "changes": [
+          "Added automatic verified server discovery after service migration while preserving sign-in and the queue."
+        ]
+      }
+    },
+    {
       "version": "0.1.11",
       "ru": {
         "title": "Veirune Mobile 0.1.11",

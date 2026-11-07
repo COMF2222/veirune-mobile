@@ -16,6 +16,18 @@ come from desktop commit df3eee0e7b9906ddbd7604879da5106290665c12.
 
 ## Backend and identity
 
+From 0.1.12, owned backends follow the offline-owner-signed endpoint announcement
+on the existing Cloudflare site. Native P-256 verification pins the public key;
+serial rollback/conflicts and non-public/credential-bearing destinations are
+rejected. Discovery runs in the background and leaves the last verified origin
+in place when the website is offline. It receives no user credentials. Custom
+servers remain explicit. An address change rebuilds active media sources while
+preserving the queue, position, desired pause state and encrypted account grant.
+The old 77.223 → 80.47 lost-database recovery remains a separate one-time path.
+Future migrations require restoration of the same backend DB and API credentials,
+not a new SoundCloud application. Older installed apps need one normal update to
+gain this mechanism. Real cross-VPS/device failover remains a deployment check.
+
 All SoundCloud metadata, artwork and audio go through the configured HTTPS
 Fastcloud backend. The phone contains no application secret. OAuth tokens stay
 native, encrypted with Android Keystore AES-GCM or iOS Keychain; JavaScript never

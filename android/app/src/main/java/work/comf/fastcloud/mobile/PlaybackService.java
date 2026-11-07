@@ -38,6 +38,10 @@ public class PlaybackService extends MediaSessionService {
   private final ArrayDeque<RadioMixer.Entry<JSONObject>> radioHistory =
     new ArrayDeque<>();
   private boolean destroyed;
+  private String playbackOrigin;
+  private final android.content.SharedPreferences.OnSharedPreferenceChangeListener endpointListener=(preferences,key)->{
+    if("endpoint-revision".equals(key))handler.post(this::applyEndpoint);
+  };
 
   private record Ticket(Gateway.PlaybackStream source, long created) {}
   private final Set<String> announcedWebStreams = ConcurrentHashMap.newKeySet();
@@ -59,6 +63,7 @@ public class PlaybackService extends MediaSessionService {
   public void onCreate() {
     super.onCreate();
     gateway = new Gateway(this);
+    playbackOrigin = gateway.server();
     listening = new Listening(this);
     var http = new DefaultHttpDataSource.Factory()
       .setConnectTimeoutMs(15000)
@@ -73,7 +78,7 @@ public class PlaybackService extends MediaSessionService {
         if (local != null) return spec.withUri(android.net.Uri.parse(local));
         Ticket ticket = streams.get(id);
         if (
-          ticket == null || ticket.source().owner() != gateway.accountId() ||
+          ticket == null || !ticket.source().url().startsWith(gateway.server()+"/") || ticket.source().owner() != gateway.accountId() ||
           System.currentTimeMillis() - ticket.created() > 3 * 3600000L
         ) {
           ticket = new Ticket(gateway.playback(id, "1".equals(spec.uri.getQueryParameter("web"))), System.currentTimeMillis());
@@ -99,6 +104,32 @@ public class PlaybackService extends MediaSessionService {
     restoreQueue();
     handler.post(tick);
     handler.post(transition);
+    handler.post(endpointWatch);
+    getSharedPreferences("mobile",0).registerOnSharedPreferenceChangeListener(endpointListener);
+  }
+
+  private final Runnable endpointWatch = new Runnable() {
+    @Override public void run() {
+      if (destroyed) return;
+      radioIo.execute(() -> {
+        gateway.refreshEndpoint(false);
+        handler.post(PlaybackService.this::applyEndpoint);
+      });
+      handler.postDelayed(this,15000);
+    }
+  };
+
+  private void applyEndpoint() {
+    String nextOrigin=gateway.server();
+    if(destroyed || nextOrigin.equals(playbackOrigin))return;
+    playbackOrigin=nextOrigin;
+    cancelSpare();streams.clear();announcedWebStreams.clear();
+    if(player.getCurrentMediaItem()==null)return;
+    boolean playing=player.getPlayWhenReady();
+    int index=player.getCurrentMediaItemIndex();
+    long position=Math.max(0,player.getCurrentPosition());
+    player.stop();player.seekTo(index,position);
+    if(playing){player.prepare();player.play();}else player.pause();
   }
 
   private ExoPlayer createPlayer(boolean focus) {
@@ -232,6 +263,7 @@ public class PlaybackService extends MediaSessionService {
             if (spare == result) cancelSpare();
             return;
           }
+          if(result.getPlayerError()!=error)return;
           cancelSpare();
           Throwable cause = error;
           boolean global = false;
@@ -1102,6 +1134,7 @@ public class PlaybackService extends MediaSessionService {
   @Override
   public void onDestroy() {
     destroyed = true;
+    getSharedPreferences("mobile",0).unregisterOnSharedPreferenceChangeListener(endpointListener);
     radioIo.shutdownNow();
     handler.removeCallbacksAndMessages(null);
     saveQueue();

@@ -1,5 +1,17 @@
 # Verification
 
+## 0.1.12 verified endpoint migration
+
+Signed release APK 0.1.12 / build 1012 passed the pinned-certificate and package
+checks. Android build, 33 JVM tests, 50 TypeScript tests and lint (zero errors)
+pass. The product public key verifies the initial website announcement; tampered
+payloads, serial rollback/conflicts and private/credential-bearing origins are
+rejected. Future restored moves preserve the native grant and queue. Media tickets
+carry their issuing origin; in-flight old-source responses cannot be mistaken for
+a new server's tickets. Paused players remain paused without fetching audio.
+No phone or second VPS was supplied: actual device cutover and cross-host
+Docker/ACME rollout are not claimed tested. iOS was not built or tested.
+
 ## 0.1.11 playback update
 
 The persistent-key signed APK was built locally; staging verified package,

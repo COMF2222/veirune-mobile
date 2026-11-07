@@ -10,7 +10,8 @@ import org.json.JSONObject;
 
 final class Gateway {
 
-  record Response(int status, byte[] bytes, String type) {
+  record Response(int status, byte[] bytes, String type, String origin) {
+    Response(int status, byte[] bytes, String type) {this(status,bytes,type,"");}
     JSONObject json() throws Exception {
       return bytes.length == 0
         ? new JSONObject()
@@ -89,15 +90,25 @@ final class Gateway {
 
   Gateway(Context context) {
     this.context = context.getApplicationContext();
+    EndpointDiscovery.schedule(this.context);
   }
 
   String server() {
-    return context
+    return EndpointDiscovery.origin(context,context
       .getSharedPreferences("mobile", 0)
-      .getString("server", ServerMigration.CURRENT);
+      .getString("server", ServerMigration.CURRENT));
   }
 
+  boolean refreshEndpoint(boolean force) {return EndpointDiscovery.refresh(context,force);}
+
   void configure(String server) throws Exception {
+    if (!EndpointDiscovery.known(context,server)) refreshEndpoint(true);
+    boolean managed = EndpointDiscovery.known(context,server);
+    String stored = context.getSharedPreferences("mobile",0).getString("server",ServerMigration.CURRENT);
+    if (managed && context.getSharedPreferences("mobile",0).getBoolean("managed-endpoint",ServerMigration.CURRENT.equals(stored))) {
+      context.getSharedPreferences("mobile",0).edit().putString("server",ServerMigration.CURRENT).putBoolean("managed-endpoint",true).commit();
+      return;
+    }
     URL value = new URL(server);
     if (
       !value.getProtocol().equals("https") ||
@@ -114,6 +125,7 @@ final class Gateway {
       .getSharedPreferences("mobile", 0)
       .edit()
       .putString("server", server)
+      .putBoolean("managed-endpoint",managed)
       .commit();
   }
 
@@ -228,11 +240,13 @@ final class Gateway {
 
   Response raw(String path, String method, JSONObject body, String token)
     throws Exception {
+    EndpointDiscovery.schedule(context);
     if (
       !path.startsWith("/v1/") || path.contains("..") || path.contains("://")
     ) throw new IOException("Invalid server path");
+    String requestOrigin=server();
     HttpURLConnection connection = (HttpURLConnection) new URL(
-      server() + path
+      requestOrigin + path
     ).openConnection();
     connection.setInstanceFollowRedirects(false);
     connection.setConnectTimeout(15000);
@@ -275,7 +289,7 @@ final class Gateway {
         }
         bytes = out.toByteArray();
       }
-      return new Response(status, bytes, connection.getContentType());
+      return new Response(status, bytes, connection.getContentType(),requestOrigin);
     } finally {
       connection.disconnect();
     }
@@ -322,13 +336,14 @@ final class Gateway {
       "POST",
       new JSONObject().put("urn", "soundcloud:tracks:" + id)
     );
+    if (!result.origin().equals(server())) result=request("/v1/media/resolve","POST",new JSONObject().put("urn","soundcloud:tracks:"+id));
     if (result.status() == 200) {
       String path = result.json().getString("playlist_path");
       if (!path.startsWith("/v1/media/")) throw new IOException(
         "Invalid playback address"
       );
       if (accountId() != owner) throw new IOException("Account changed; retry the request");
-      return new PlaybackStream(server() + path, null, null, owner);
+      return new PlaybackStream(result.origin() + path, null, null, owner);
     }
     boolean ownerDenial = result.status() == 403 && result.json().optString("error").toLowerCase(java.util.Locale.ROOT).contains("owner");
     if (ownerDenial || (result.status() != 422 && result.status() != 403)) throw playbackFailure(result);
@@ -336,13 +351,11 @@ final class Gateway {
       PlaybackStream source = webPlayback(id, owner);
       if (source != null) return source;
     }
-    JSONObject data = json(
-      "/v1/soundcloud/api/tracks/" +
-        java.net.URLEncoder.encode("soundcloud:tracks:" + id, "UTF-8") +
-        "/streams",
-      "GET",
-      null
-    );
+    String directPath="/v1/soundcloud/api/tracks/"+java.net.URLEncoder.encode("soundcloud:tracks:"+id,"UTF-8")+"/streams";
+    Response direct=request(directPath,"GET",null);
+    if(!direct.origin().equals(server()))direct=request(directPath,"GET",null);
+    if(direct.status()!=200)throw playbackFailure(direct);
+    JSONObject data=normalize(direct.json());
     String path = data.optString(
       "hls_aac_160_url",
       data.optString("hls_mp3_128_url")
@@ -351,11 +364,12 @@ final class Gateway {
       "No playable stream"
     );
     if (accountId() != owner) throw new IOException("Account changed; retry the request");
-    return new PlaybackStream(server() + path, null, null, owner);
+    return new PlaybackStream(direct.origin() + path, null, null, owner);
   }
 
   private PlaybackStream webPlayback(long id, long owner) throws Exception {
     Response web = request("/v1/media/web-resolve", "POST", new JSONObject().put("urn", "soundcloud:tracks:" + id).put("drm", "widevine"));
+    if (!web.origin().equals(server())) web=request("/v1/media/web-resolve","POST",new JSONObject().put("urn","soundcloud:tracks:"+id).put("drm","widevine"));
     if (web.status() == 200) {
       JSONObject value = web.json();
       String path = value.getString("playlist_path");
@@ -365,7 +379,7 @@ final class Gateway {
       String license = licenses == null ? null : licenses.optString("com.widevine.alpha", null);
       if (license != null && !license.equals(basePath + "license/widevine")) throw new IOException("Invalid playback license address");
       if (accountId() != owner) throw new IOException("Account changed; retry the request");
-      return new PlaybackStream(server() + path, license, basePath + "started", owner);
+      return new PlaybackStream(web.origin() + path, license, basePath + "started", owner);
     }
     if (web.status() != 404 && web.status() != 422) throw playbackFailure(web);
     return null;

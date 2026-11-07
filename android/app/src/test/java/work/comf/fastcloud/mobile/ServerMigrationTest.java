@@ -7,5 +7,6 @@ public class ServerMigrationTest {
     assertFalse(ServerMigration.restoring("https://another.example",ServerMigration.CURRENT));
     assertFalse(ServerMigration.restoring(ServerMigration.LEGACY,"https://80.47.238.200.evil.example"));
     assertFalse(ServerMigration.restoring(ServerMigration.CURRENT,ServerMigration.CURRENT));
+    assertFalse(ServerMigration.restoring(ServerMigration.CURRENT,"https://restored.example"));
   }
 }
