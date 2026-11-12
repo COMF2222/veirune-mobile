@@ -2,6 +2,21 @@
   "schema": 1,
   "releases": [
     {
+      "version": "0.1.13",
+      "ru": {
+        "title": "Veirune Mobile 0.1.13",
+        "changes": [
+          "Исправлен адрес сервера после переноса VPS; обновление сохраняет данные и вход."
+        ]
+      },
+      "en": {
+        "title": "Veirune Mobile 0.1.13",
+        "changes": [
+          "Updated the server address after the VPS migration; the update preserves sign-in and local data."
+        ]
+      }
+    },
+    {
       "version": "0.1.12",
       "ru": {
         "title": "Veirune Mobile 0.1.12",
