@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import org.json.JSONObject;
 
 final class EndpointDiscovery {
-  private static final String BOOK = "https://fastcloud.comf.workers.dev/service.json";
+  private static final String BOOK = "https://veirune.comf.workers.dev/service.json";
   private static volatile long attempted;
   private static volatile JSONObject current;
   private static boolean loaded;
